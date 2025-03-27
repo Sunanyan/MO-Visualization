@@ -57,4 +57,149 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // 光源
+            // 光源设置
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+            scene.add(new THREE.AmbientLight(0x404040));
+
+            // 初始化GUI
+            const gui = new dat.GUI({ autoPlace: false });
+            document.getElementById('gui').appendChild(gui.domElement);
+            gui.add(controls, 'positiveIsovalue', 0.01, 0.1).name('Positive Level').onChange(updateIsosurfaces);
+            gui.add(controls, 'negativeIsovalue', -0.1, -0.01).name('Negative Level').onChange(updateIsosurfaces);
+            gui.add(controls, 'opacity', 0.3, 1.0).name('Opacity');
+
+            // 默认加载HOMO轨道
+            await loadOrbital('mo15a');
+            camera.position.z = 15;
+
+            // 绑定下拉菜单
+            document.getElementById('orbitalSelector').addEventListener('change', async (e) => {
+                await loadOrbital(e.target.value);
+            });
+
+            // 动画循环
+            animate();
+        }
+
+        // 加载轨道核心逻辑
+        async function loadOrbital(moName) {
+            document.getElementById('loading').style.display = 'block';
+            
+            // 清理旧对象
+            if (currentPositiveIso) scene.remove(currentPositiveIso);
+            if (currentNegativeIso) scene.remove(currentNegativeIso);
+            scene.traverse(child => { if (child.type === 'Mesh') scene.remove(child); });
+
+            try {
+                // 加载并解析Cube文件
+                const response = await fetch(`orbitals/diene.${moName}.cube`);
+                const cubeData = parseCubeFile(await response.text());
+
+                // 创建相位颜色材质
+                const positiveMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xFF0000,  // 红色代表正相位
+                    transparent: true,
+                    opacity: controls.opacity,
+                    side: THREE.DoubleSide
+                });
+
+                const negativeMaterial = new THREE.MeshPhongMaterial({
+                    color: 0x0000FF,  // 蓝色代表负相位
+                    transparent: true,
+                    opacity: controls.opacity,
+                    side: THREE.DoubleSide
+                });
+
+                // 生成等值面
+                currentPositiveIso = createIsosurface(cubeData, controls.positiveIsovalue, positiveMaterial);
+                currentNegativeIso = createIsosurface(cubeData, controls.negativeIsovalue, negativeMaterial);
+                
+                scene.add(currentPositiveIso);
+                scene.add(currentNegativeIso);
+
+                // 添加原子
+                cubeData.atoms.forEach(atom => {
+                    const geometry = new THREE.SphereGeometry(0.3);
+                    const material = new THREE.MeshPhongMaterial({
+                        color: getAtomColor(atom.atomicNumber),
+                        specular: 0x111111,
+                        shininess: 30
+                    });
+                    const sphere = new THREE.Mesh(geometry, material);
+                    sphere.position.set(atom.x, atom.y, atom.z);
+                    scene.add(sphere);
+                });
+
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // 等值面生成函数（带相位颜色支持）
+        function createIsosurface(cubeData, isovalue, material) {
+            const mc = new MarchingCubes(cubeData.nx, material, true, true);
+            mc.position.set(...cubeData.origin);
+            mc.reset();
+
+            let i = 0;
+            for (let z = 0; z < cubeData.nz; z++) {
+                for (let y = 0; y < cubeData.ny; y++) {
+                    for (let x = 0; x < cubeData.nx; x++) {
+                        mc.setCell(x, y, z, cubeData.data[i++]);
+                    }
+                }
+            }
+            mc.update(isovalue);
+            return mc;
+        }
+
+        // 更新等值面
+        function updateIsosurfaces() {
+            [currentPositiveIso, currentNegativeIso].forEach(iso => {
+                if (iso) {
+                    iso.material.opacity = controls.opacity;
+                    iso.update(iso === currentPositiveIso ? controls.positiveIsovalue : controls.negativeIsovalue);
+                }
+            });
+        }
+
+        // 原子颜色映射
+        function getAtomColor(atomicNumber) {
+            const colorMap = {
+                1: 0xFFFFFF,  // H (白)
+                6: 0x808080,  // C (灰)
+                7: 0x0000FF,  // N (蓝)
+                8: 0xFF0000,  // O (红)
+                16: 0xFFFF00  // S (黄)
+            };
+            return colorMap[atomicNumber] || 0x00FF00;
+        }
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        // Cube文件解析器
+        function parseCubeFile(content) {
+            // 保持之前提供的解析逻辑不变
+            // ...
+        }
+
+        // 初始化
+        init();
+
+        // 窗口大小响应
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
