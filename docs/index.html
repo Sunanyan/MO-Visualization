@@ -1,12 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Molecular Orbital Viewer</title>
-    <link rel="stylesheet" href="style.css">
+    <title>丁二烯分子轨道查看器</title>
+    <meta charset="utf-8">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+        body { 
+            margin: 0; 
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+        }
         #container {
             width: 100vw;
             height: 100vh;
@@ -17,28 +21,35 @@
             top: 20px;
             left: 20px;
             background: rgba(255, 255, 255, 0.95);
-            padding: 15px;
-            border-radius: 8px;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            min-width: 250px;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            width: 280px;
         }
-        .slider-container {
-            margin: 10px 0;
+        .control-group {
+            margin: 15px 0;
         }
-        .slider-container label {
+        label {
             display: block;
-            margin-bottom: 5px;
-            font-size: 14px;
+            margin-bottom: 8px;
             color: #333;
+            font-weight: bold;
         }
         input[type="range"] {
             width: 100%;
-            margin: 5px 0;
+            margin: 8px 0;
         }
         .value-display {
             float: right;
             color: #666;
+            font-weight: normal;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -46,136 +57,191 @@
     <div id="container"></div>
     
     <div id="controls">
-        <div class="slider-container">
-            <label>选择轨道：
+        <div class="control-group">
+            <label>选择分子轨道：
                 <select id="orbitalSelect">
                     <option value="mo13a">MO13a (HOMO-1)</option>
-                    <option value="mo14a">MO14a (HOMO)</option>
+                    <option value="mo14a" selected>MO14a (HOMO)</option>
                     <option value="mo15a">MO15a (LUMO)</option>
                     <option value="mo19a">MO19a (LUMO+4)</option>
                 </select>
             </label>
         </div>
 
-        <div class="slider-container">
-            <label>键半径: <span class="value-display" id="stickRadiusValue">0.15</span></label>
-            <input type="range" id="stickRadius" min="0.05" max="0.3" step="0.01" value="0.15">
+        <div class="control-group">
+            <label>等值面值: 
+                <span class="value-display" id="isovalValue">0.05</span>
+            </label>
+            <input type="range" id="isoval" 
+                   min="0.01" max="0.2" step="0.01" value="0.05">
         </div>
 
-        <div class="slider-container">
-            <label>原子大小: <span class="value-display" id="atomScaleValue">0.3</span></label>
-            <input type="range" id="atomScale" min="0.1" max="1.0" step="0.1" value="0.3">
+        <div class="control-group">
+            <label>键半径: 
+                <span class="value-display" id="stickRadiusValue">0.15</span>
+            </label>
+            <input type="range" id="stickRadius" 
+                   min="0.05" max="0.3" step="0.01" value="0.15">
         </div>
 
-        <div class="slider-container">
-            <label>透明度: <span class="value-display" id="opacityValue">0.7</span></label>
-            <input type="range" id="opacity" min="0" max="1" step="0.1" value="0.7">
+        <div class="control-group">
+            <label>原子大小: 
+                <span class="value-display" id="atomScaleValue">0.3</span>
+            </label>
+            <input type="range" id="atomScale" 
+                   min="0.1" max="1.0" step="0.1" value="0.3">
         </div>
 
-        <div class="slider-container">
-            <label>等值面值: <span class="value-display" id="isovalValue">0.05</span></label>
-            <input type="range" id="isoval" min="0.01" max="0.2" step="0.01" value="0.05">
+        <div class="control-group">
+            <label>透明度: 
+                <span class="value-display" id="opacityValue">0.7</span>
+            </label>
+            <input type="range" id="opacity" 
+                   min="0" max="1" step="0.1" value="0.7">
         </div>
     </div>
 
     <script>
         let viewer = null;
-        let currentCubeData = null;
+        let currentModel = null;
         
+        // 原子颜色配置
+        const atomColors = {
+            'C': '#808080',  // 碳原子颜色
+            'H': '#FFFFFF'   // 氢原子颜色
+        };
+
         $(document).ready(function() {
-            // 初始化3Dmol viewer
-            viewer = $3Dmol.createViewer("container", {
-                backgroundColor: 0xffffff,
-                defaultZoom: 1.2
-            });
-            
-            // 设置初始轨道
-            loadOrbital('mo14a');
-            
-            // 事件监听
-            $('#orbitalSelect').change(function() {
-                loadOrbital($(this).val());
-            });
-            
-            $('input[type="range"]').on('input', function() {
-                // 更新数值显示
-                $('#' + this.id + 'Value').text(this.value);
-                // 如果有加载的数据则更新视图
-                if (currentCubeData) updateViewer();
-            });
+            initializeViewer();
+            setupEventListeners();
+            loadInitialData();
         });
 
-        function loadOrbital(mo) {
-            const filename = `orbitals/diene.${mo}.cube`;
-            
-            $.get(filename, function(data) {
-                currentCubeData = data;
-                updateViewer();
-            }).fail(function() {
-                alert("无法加载cube文件！");
+        function initializeViewer() {
+            viewer = $3Dmol.createViewer("container", {
+                backgroundColor: 0xffffff,
+                defaultZoom: 0.8
             });
         }
 
-        function updateViewer() {
-            viewer.removeAllSurfaces();
-            viewer.clear();
-            
-            // 获取当前参数值
+        function setupEventListeners() {
+            // 轨道选择事件
+            $('#orbitalSelect').change(function() {
+                reloadVisualization();
+            });
+
+            // 参数调整事件
+            $('input[type="range"]').on('input', function() {
+                $('#' + this.id + 'Value').text(this.value);
+                reloadVisualization();
+            });
+
+            // 窗口大小调整
+            window.addEventListener('resize', () => {
+                viewer.resize();
+                viewer.render();
+            });
+        }
+
+        function loadInitialData() {
+            // 首次加载HOMO轨道
+            reloadVisualization();
+        }
+
+        async function reloadVisualization() {
+            // 获取当前参数
+            const orbital = $('#orbitalSelect').val();
+            const isoval = parseFloat($('#isoval').val());
             const stickRadius = parseFloat($('#stickRadius').val());
             const atomScale = parseFloat($('#atomScale').val());
             const opacity = parseFloat($('#opacity').val());
-            const isoval = parseFloat($('#isoval').val());
-        
-            // 添加分子结构
-            viewer.addModel(currentCubeData, "cube");
-            
-            // 手动指定双键（需要知道原子索引）
-            viewer.setStyle({}, {
+
+            try {
+                // 加载分子结构
+                const xyzData = await $.get('diene.xyz');
+                // 加载轨道数据
+                const cubeData = await $.get(`orbitals/diene.${orbital}.cube`);
+
+                viewer.removeAllSurfaces();
+                viewer.clear();
+
+                // 添加分子结构
+                currentModel = viewer.addModel(xyzData, "xyz");
+                setupMolecularStyle(stickRadius, atomScale);
+                setupDoubleBonds();
+
+                // 添加轨道表面
+                addOrbitalSurface(cubeData, isoval, opacity);
+
+                viewer.zoomTo();
+                viewer.render();
+                
+            } catch (error) {
+                alert("数据加载失败，请检查控制台日志");
+                console.error(error);
+            }
+        }
+
+        function setupMolecularStyle(stickRadius, atomScale) {
+            currentModel.setStyle({}, {
                 stick: {
                     radius: stickRadius,
-                    singleBond: false, // 禁用自动单键检测
-                    bonds: [
-                        // 假设C1-C2是双键（需要根据实际原子索引修改）
-                        { atoms: [0,1], order: 2, color: "gray" },
-                        { atoms: [2,3], order: 2, color: "gray" },
-                        // 其他单键
-                        { atoms: [0,4], order: 1, color: "gray" },
-                        // ...其他键
-                    ]
+                    singleBond: false
                 },
                 sphere: {
                     scale: atomScale,
-                    colorscheme: {
-                        "C": "#808080",
-                        "H": "#FFFFFF"
-                    }
+                    color: atom => atomColors[atom.elem] || '#FF0000'
                 }
             });
-        
-            // 添加正相位表面（纯红色）
+        }
+
+        function setupDoubleBonds() {
+            // 手动设置双键（根据实际原子索引调整）
+            // 示例：假设原子0-1和2-3形成双键
+            currentModel.setBondStyle([
+                {
+                    atoms: [0, 1], 
+                    order: 2,
+                    style: {
+                        radius: 0.15,
+                        dash: { length: 0.3, radius: 0.08 }
+                    }
+                },
+                {
+                    atoms: [2, 3], 
+                    order: 2,
+                    style: {
+                        radius: 0.15,
+                        dash: { length: 0.3, radius: 0.08 }
+                    }
+                }
+            ]);
+        }
+
+        function addOrbitalSurface(cubeData, isoval, opacity) {
+            // 添加正相位表面（红色）
             viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
+                voldata: new $3Dmol.VolumeData(cubeData, "cube"),
                 isoval: isoval,
-                color: new $3Dmol.Color(1, 0, 0), // 纯红色
+                color: new $3Dmol.Color(1, 0, 0),  // 纯红色
                 opacity: opacity,
                 volscheme: new $3Dmol.Gradient.Custom([0,1], [
-                    new $3Dmol.Color(1,0,0), // 正相位全红
+                    new $3Dmol.Color(1,0,0), 
                     new $3Dmol.Color(1,0,0)
                 ])
             });
-            
-            // 添加负相位表面（纯蓝色）
+
+            // 添加负相位表面（蓝色）
             viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
+                voldata: new $3Dmol.VolumeData(cubeData, "cube"),
                 isoval: -isoval,
-                color: new $3Dmol.Color(0, 0, 1), // 纯蓝色
+                color: new $3Dmol.Color(0, 0, 1),  // 纯蓝色
                 opacity: opacity,
                 volscheme: new $3Dmol.Gradient.Custom([0,1], [
-                    new $3Dmol.Color(0,0,1), // 负相位全蓝
+                    new $3Dmol.Color(0,0,1), 
                     new $3Dmol.Color(0,0,1)
                 ])
             });
-
-            viewer.zoomTo();
-            viewer.render();
         }
     </script>
 </body>
