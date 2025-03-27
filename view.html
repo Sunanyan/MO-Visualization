@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>分子轨道交互展示</title>
+  <!-- 引入 3Dmol.js -->
+  <script src="https://3Dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+  <style>
+    #viewer {
+      width: 800px;
+      height: 600px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h2>分子轨道交互展示</h2>
+  <label for="orbitalSelector">选择分子轨道：</label>
+  <select id="orbitalSelector">
+    <option value="diene.mo13a.cube">diene.mo13a.cube</option>
+    <option value="diene.mo14a.cube">diene.mo14a.cube</option>
+    <option value="diene.mo15a.cube">diene.mo15a.cube</option>
+    <option value="diene.mo19a.cube">diene.mo19a.cube</option>
+  </select>
+  
+  <div id="viewer"></div>
+  
+  <script>
+    // 获取 viewer 容器并创建 3Dmol 查看器
+    let element = document.getElementById("viewer");
+    let viewer = $3Dmol.createViewer(element, { backgroundColor: 'white' });
+    
+    // 加载并显示 cube 文件的函数
+    function loadOrbital(fileUrl) {
+      viewer.clear(); // 清除当前模型
+      
+      // 加载 cube 文件并添加等值面显示
+      $3Dmol.download(fileUrl, viewer, {}, function() {
+        // 添加体积数据，isoval 值可以根据你的数据进行微调
+        viewer.addVolumetricCube({ isoval: 0.02, color: "blue", opacity: 0.5 });
+        viewer.zoomTo();
+        viewer.render();
+      });
+    }
+    
+    // 下拉菜单事件监听器
+    document.getElementById("orbitalSelector").addEventListener("change", function() {
+      loadOrbital(this.value);
+    });
+    
+    // 默认加载第一个分子轨道
+    loadOrbital(document.getElementById("orbitalSelector").value);
+  </script>
+</body>
+</html>
