@@ -125,36 +125,53 @@
             const atomScale = parseFloat($('#atomScale').val());
             const opacity = parseFloat($('#opacity').val());
             const isoval = parseFloat($('#isoval').val());
-
+        
             // 添加分子结构
             viewer.addModel(currentCubeData, "cube");
+            
+            // 手动指定双键（需要知道原子索引）
             viewer.setStyle({}, {
-                stick: { 
+                stick: {
                     radius: stickRadius,
-                    colorscheme: "gray"
+                    singleBond: false, // 禁用自动单键检测
+                    bonds: [
+                        // 假设C1-C2是双键（需要根据实际原子索引修改）
+                        { atoms: [0,1], order: 2, color: "gray" },
+                        { atoms: [2,3], order: 2, color: "gray" },
+                        // 其他单键
+                        { atoms: [0,4], order: 1, color: "gray" },
+                        // ...其他键
+                    ]
                 },
                 sphere: {
                     scale: atomScale,
                     colorscheme: {
-                        "C": "#808080",  // 碳原子颜色
-                        "H": "#FFFFFF"   // 氢原子颜色
+                        "C": "#808080",
+                        "H": "#FFFFFF"
                     }
                 }
             });
-
-            // 添加正负相位表面
+        
+            // 添加正相位表面（纯红色）
             viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
                 isoval: isoval,
-                color: "red",
+                color: new $3Dmol.Color(1, 0, 0), // 纯红色
                 opacity: opacity,
-                volscheme: new $3Dmol.Gradient.RWB
+                volscheme: new $3Dmol.Gradient.Custom([0,1], [
+                    new $3Dmol.Color(1,0,0), // 正相位全红
+                    new $3Dmol.Color(1,0,0)
+                ])
             });
             
+            // 添加负相位表面（纯蓝色）
             viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
                 isoval: -isoval,
-                color: "blue",
+                color: new $3Dmol.Color(0, 0, 1), // 纯蓝色
                 opacity: opacity,
-                volscheme: new $3Dmol.Gradient.RWB
+                volscheme: new $3Dmol.Gradient.Custom([0,1], [
+                    new $3Dmol.Color(0,0,1), // 负相位全蓝
+                    new $3Dmol.Color(0,0,1)
+                ])
             });
 
             viewer.zoomTo();
