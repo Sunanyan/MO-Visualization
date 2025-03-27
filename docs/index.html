@@ -3,185 +3,91 @@
 <head>
     <title>Molecular Orbital Viewer</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
-        #canvas-container { width: 100vw; height: 100vh; }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
         #controls {
-            position: fixed;
+            position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.9);
             padding: 15px;
-            border-radius: 5px;
+            border-radius: 8px;
+            z-index: 1000;
         }
     </style>
 </head>
 <body>
-    <div id="canvas-container"></div>
+    <div id="container"></div>
+    
     <div id="controls">
-        <select id="orbitalSelector">
+        <select id="orbitalSelect">
             <option value="mo13a">MO13a (HOMO-1)</option>
             <option value="mo14a">MO14a (HOMO)</option>
             <option value="mo15a">MO15a (LUMO)</option>
             <option value="mo19a">MO19a (LUMO+4)</option>
         </select>
-        <input type="number" id="isovalue" step="0.01" value="0.05">
+        <input type="number" id="isoval" step="0.01" value="0.05" min="0" max="1">
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script>
-        let scene, camera, renderer, controls;
-        let currentOrbital = null;
+        let viewer = null;
+        let currentSurface = null;
         
-        init();
-        animate();
-
-        async function init() {
-            // 初始化场景
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-            // 设置相机和控制
-            camera.position.z = 50;
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-
-            // 添加灯光
-            const light = new THREE.DirectionalLight(0xffffff, 1);
-            light.position.set(1, 1, 1);
-            scene.add(light);
-            scene.add(new THREE.AmbientLight(0x404040));
-
-            // 加载初始轨道
-            loadOrbital('diene.mo14a.cube');
-
+        $(document).ready(function() {
+            // 初始化3Dmol viewer
+            viewer = $3Dmol.createViewer("container", {
+                backgroundColor: 0xffffff,
+                defaultZoom: 1.2
+            });
+            
+            // 设置初始轨道
+            loadOrbital('mo14a');
+            
             // 事件监听
-            document.getElementById('orbitalSelector').addEventListener('change', (e) => {
-                const filename = `diene.${e.target.value}.cube`;
-                loadOrbital(filename);
+            $('#orbitalSelect').change(function() {
+                loadOrbital($(this).val());
             });
-
-            document.getElementById('isovalue').addEventListener('change', (e) => {
-                if(currentOrbital) {
-                    currentOrbital.material.uniforms.isoval.value = parseFloat(e.target.value);
-                }
-            });
-        }
-
-        async function loadOrbital(filename) {
-            // 移除旧轨道
-            if(currentOrbital) {
-                scene.remove(currentOrbital);
-                currentOrbital.geometry.dispose();
-                currentOrbital.material.dispose();
-            }
-
-            // 加载和解析cube文件
-            const response = await fetch(`orbitals/${filename}`);
-            const text = await response.text();
-            const { atoms, gridData } = parseCube(text);
-
-            // 创建分子轨道表面
-            currentOrbital = createOrbitalSurface(gridData);
-            scene.add(currentOrbital);
-
-            // 创建原子球体
-            atoms.forEach(atom => {
-                const sphere = new THREE.Mesh(
-                    new THREE.SphereGeometry(atom.radius),
-                    new THREE.MeshPhongMaterial({ color: atom.color })
-                );
-                sphere.position.set(...atom.position);
-                scene.add(sphere);
-            });
-        }
-
-        function parseCube(text) {
-            // 解析cube文件
-            const lines = text.split('\n').filter(l => l.trim() !== '');
-            const atoms = [];
-            const [numAtoms, ox, oy, oz] = lines[2].split(/\s+/).map(parseFloat);
             
-            // 解析原子信息
-            for(let i = 0; i < numAtoms; i++) {
-                const parts = lines[6 + i].split(/\s+/).filter(p => p !== '');
-                const [atomicNumber, x, y, z] = parts.map(parseFloat);
-                atoms.push({
-                    position: [x, y, z],
-                    radius: getAtomicRadius(atomicNumber),
-                    color: getAtomicColor(atomicNumber)
-                });
-            }
-
-            // 解析网格数据
-            const gridData = [];
-            let pointer = 6 + numAtoms;
-            while(pointer < lines.length) {
-                gridData.push(...lines[pointer++].split(/\s+/).filter(p => p !== '').map(parseFloat));
-            }
-
-            return { atoms, gridData };
-        }
-
-        function createOrbitalSurface(gridData) {
-            // 创建等值面几何体（简化示例）
-            const geometry = new THREE.BufferGeometry();
-            const material = new THREE.ShaderMaterial({
-                uniforms: { isoval: { value: 0.05 } },
-                vertexShader: `
-                    varying vec3 vNormal;
-                    void main() {
-                        vNormal = normal;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                    }
-                `,
-                fragmentShader: `
-                    varying vec3 vNormal;
-                    void main() {
-                        vec3 light = vec3(0.5, 0.5, 1.0);
-                        float intensity = dot(normalize(vNormal), normalize(light));
-                        gl_FragColor = vec4(vec3(0.2, 0.8, 0.4) * intensity, 0.7);
-                    }
-                `,
-                transparent: true
+            $('#isoval').change(function() {
+                loadOrbital($('#orbitalSelect').val());
             });
-
-            // 这里需要添加实际的等值面生成算法（例如Marching Cubes）
-            // 由于复杂度较高，建议使用预生成的表面或简化实现
-            
-            return new THREE.Mesh(geometry, material);
-        }
-
-        function getAtomicColor(atomicNumber) {
-            const colors = {
-                1: 0xFFFFFF,   // H
-                6: 0x808080    // C
-            };
-            return colors[atomicNumber] || 0xFF0000;
-        }
-
-        function getAtomicRadius(atomicNumber) {
-            return {
-                1: 0.2,   // H
-                6: 0.4    // C
-            }[atomicNumber] || 0.3;
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        function loadOrbital(mo) {
+            const isoval = parseFloat($('#isoval').val());
+            const filename = `orbitals/diene.${mo}.cube`;
+            
+            // 清除旧数据
+            viewer.removeAllSurfaces();
+            viewer.clear();
+            
+            // 加载cube文件
+            $.get(filename, function(data) {
+                // 添加分子结构
+                viewer.addModel(data, "cube");
+                viewer.setStyle({}, {sphere: {}});
+                
+                // 添加轨道表面
+                viewer.addSurface($3Dmol.SurfaceType.VDW, {
+                    isoval: isoval,
+                    color: "green",
+                    opacity: 0.7
+                });
+                
+                // 设置视角和渲染
+                viewer.zoomTo();
+                viewer.render();
+            }).fail(function() {
+                alert("Failed to load cube file!");
+            });
+        }
     </script>
 </body>
 </html>
