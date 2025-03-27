@@ -168,7 +168,6 @@
                 // 添加分子结构
                 currentModel = viewer.addModel(xyzData, "xyz");
                 setupMolecularStyle(stickRadius, atomScale);
-                setupDoubleBonds();
 
                 // 添加轨道表面
                 addOrbitalSurface(cubeData, isoval, opacity);
@@ -186,36 +185,40 @@
             currentModel.setStyle({}, {
                 stick: {
                     radius: stickRadius,
-                    singleBond: false
+                    singleBond: false,
+                    // 直接在style中指定双键
+                    bonds: [
+                        // 第一个双键（根据实际原子索引调整）
+                        { 
+                            atoms: [0, 1], 
+                            order: 2,
+                            style: {
+                                radius: stickRadius,
+                                dash: { 
+                                    length: 0.3, 
+                                    radius: stickRadius * 0.7 
+                                }
+                            }
+                        },
+                        // 第二个双键
+                        { 
+                            atoms: [2, 3], 
+                            order: 2,
+                            style: {
+                                radius: stickRadius,
+                                dash: { 
+                                    length: 0.3, 
+                                    radius: stickRadius * 0.7 
+                                }
+                            }
+                        }
+                    ]
                 },
                 sphere: {
                     scale: atomScale,
                     color: atom => atomColors[atom.elem] || '#FF0000'
                 }
             });
-        }
-
-        function setupDoubleBonds() {
-            // 手动设置双键（根据实际原子索引调整）
-            // 示例：假设原子0-1和2-3形成双键
-            currentModel.setBondStyle([
-                {
-                    atoms: [0, 1], 
-                    order: 2,
-                    style: {
-                        radius: 0.15,
-                        dash: { length: 0.3, radius: 0.08 }
-                    }
-                },
-                {
-                    atoms: [2, 3], 
-                    order: 2,
-                    style: {
-                        radius: 0.15,
-                        dash: { length: 0.3, radius: 0.08 }
-                    }
-                }
-            ]);
         }
 
         function addOrbitalSurface(cubeData, isoval, opacity) {
