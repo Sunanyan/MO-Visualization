@@ -31,9 +31,11 @@
     function loadOrbital(fileUrl) {
       console.log("正在加载文件：", fileUrl);
       viewer.clear();
-      $3Dmol.download(fileUrl, viewer, {}, function() {
-        console.log("文件加载成功：", fileUrl);
-        viewer.addVolumetricCube({ isoval: 0.02, color: "blue", opacity: 0.5 });
+      // 指定 format: 'cube' 让 3Dmol.js 解析 cube 文件
+      $3Dmol.download(fileUrl, viewer, { format: 'cube' }, function(data) {
+        console.log("Cube文件数据：", data);
+        // 把解析后的数据传入 addVolumetricCube
+        viewer.addVolumetricCube(data, { isoval: 0.02, color: "blue", opacity: 0.5 });
         viewer.zoomTo();
         viewer.render();
       });
