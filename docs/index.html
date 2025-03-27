@@ -1,94 +1,60 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>分子轨道可视化</title>
+    <title>Molecular Orbital Visualizer with Phase Colors</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
     <style>
-        body { margin: 0; overflow: hidden; }
-        #gui { position: absolute; top: 10px; right: 10px; }
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            background: #1a1a1a;
+        }
+        #gui { 
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+        .dg.main.a {
+            border-radius: 8px !important;
+            opacity: 0.9 !important;
+        }
     </style>
 </head>
 <body>
+    <div id="gui">
+        <select id="orbitalSelector">
+            <option value="mo13a">MO13 (HOMO-2)</option>
+            <option value="mo14a">MO14 (HOMO-1)</option>
+            <option value="mo15a">MO15 (HOMO)</option>
+            <option value="mo19a">MO19 (LUMO)</option>
+        </select>
+    </div>
+    <div id="loading" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white;">
+        Loading...
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three-marching-cubes@1.0.0/build/three-marching-cubes.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
 
     <script>
-        let scene, camera, renderer, controls;
-        
+        let scene, camera, renderer;
+        let currentPositiveIso, currentNegativeIso;
+        let controls = {
+            positiveIsovalue: 0.05,
+            negativeIsovalue: -0.05,
+            opacity: 0.6
+        };
+
+        // 初始化场景
         async function init() {
-            // 初始化场景
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // 添加光源
-            const light = new THREE.DirectionalLight(0xffffff, 1);
-            light.position.set(5, 5, 5);
-            scene.add(light);
-            scene.add(new THREE.AmbientLight(0x404040));
-
-            // 加载 Cube 文件
-            const response = await fetch('orbitals/example.cube');
-            const cubeContent = await response.text();
-            const cubeData = parseCubeFile(cubeContent);
-
-            // 创建等值面
-            const isosurface = createIsosurface(cubeData);
-            scene.add(isosurface);
-
-            // 添加原子球体
-            cubeData.atoms.forEach(atom => {
-                const geometry = new THREE.SphereGeometry(0.3);
-                const material = new THREE.MeshPhongMaterial({ 
-                    color: getAtomColor(atom.atomicNumber) 
-                });
-                const sphere = new THREE.Mesh(geometry, material);
-                sphere.position.set(atom.x, atom.y, atom.z);
-                scene.add(sphere);
-            });
-
-            // 相机位置
-            camera.position.z = 15;
-
-            // 添加 GUI 控制
-            const gui = new dat.GUI();
-            gui.add({ isovalue: 0.05 }, 'isovalue', 0.01, 0.1).onChange(v => {
-                isosurface.update(v);
-            });
-
-            // 动画循环
-            function animate() {
-                requestAnimationFrame(animate);
-                renderer.render(scene, camera);
-            }
-            animate();
-
-            // 窗口自适应
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-        }
-
-        // 原子颜色映射
-        function getAtomColor(atomicNumber) {
-            const colors = {
-                1: 0xFFFFFF,   // H (白)
-                6: 0x808080,   // C (灰)
-                7: 0x0000FF,   // N (蓝)
-                8: 0xFF0000,   // O (红)
-                // 其他原子颜色...
-            };
-            return colors[atomicNumber] || 0x00FF00;
-        }
-
-        init();
-    </script>
-</body>
-</html>
+            // 光源
