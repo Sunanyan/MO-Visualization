@@ -104,6 +104,7 @@
     <script>
         let viewer = null;
         let currentModel = null;
+        let isUpdating = false; // 防止重复更新
         
         // 原子颜色配置
         const atomColors = {
@@ -127,13 +128,17 @@
         function setupEventListeners() {
             // 轨道选择事件
             $('#orbitalSelect').change(function() {
-                reloadVisualization();
+                if (!isUpdating) reloadVisualization();
             });
 
-            // 参数调整事件
+            // 参数调整事件（添加防抖处理）
+            let updateTimer;
             $('input[type="range"]').on('input', function() {
                 $('#' + this.id + 'Value').text(this.value);
-                reloadVisualization();
+                clearTimeout(updateTimer);
+                updateTimer = setTimeout(() => {
+                    if (!isUpdating) reloadVisualization();
+                }, 300);
             });
 
             // 窗口大小调整
@@ -148,6 +153,9 @@
         }
 
         async function reloadVisualization() {
+            if (isUpdating) return;
+            isUpdating = true;
+            
             const orbital = $('#orbitalSelect').val();
             const isoval = parseFloat($('#isoval').val());
             const stickRadius = parseFloat($('#stickRadius').val());
@@ -166,7 +174,6 @@
                 // 添加分子结构
                 currentModel = viewer.addModel(xyzData, "xyz");
                 setupMolecularStyle(stickRadius, atomScale);
-                setupDoubleBonds(stickRadius);
 
                 // 添加轨道表面
                 addOrbitalSurface(cubeData, isoval, opacity);
@@ -177,6 +184,8 @@
             } catch (error) {
                 console.error('加载错误:', error);
                 alert("数据加载失败，请检查控制台日志");
+            } finally {
+                isUpdating = false;
             }
         }
 
