@@ -144,12 +144,10 @@
         }
 
         function loadInitialData() {
-            // 首次加载HOMO轨道
             reloadVisualization();
         }
 
         async function reloadVisualization() {
-            // 获取当前参数
             const orbital = $('#orbitalSelect').val();
             const isoval = parseFloat($('#isoval').val());
             const stickRadius = parseFloat($('#stickRadius').val());
@@ -157,10 +155,10 @@
             const opacity = parseFloat($('#opacity').val());
 
             try {
-                // 加载分子结构
-                const xyzData = await $.get('diene.xyz');
-                // 加载轨道数据
-                const cubeData = await $.get(`orbitals/diene.${orbital}.cube`);
+                const [xyzData, cubeData] = await Promise.all([
+                    $.get('diene.xyz'),
+                    $.get(`orbitals/diene.${orbital}.cube`)
+                ]);
 
                 viewer.removeAllSurfaces();
                 viewer.clear();
@@ -168,6 +166,7 @@
                 // 添加分子结构
                 currentModel = viewer.addModel(xyzData, "xyz");
                 setupMolecularStyle(stickRadius, atomScale);
+                setupDoubleBonds(stickRadius);
 
                 // 添加轨道表面
                 addOrbitalSurface(cubeData, isoval, opacity);
@@ -176,8 +175,8 @@
                 viewer.render();
                 
             } catch (error) {
+                console.error('加载错误:', error);
                 alert("数据加载失败，请检查控制台日志");
-                console.error(error);
             }
         }
 
@@ -186,9 +185,8 @@
                 stick: {
                     radius: stickRadius,
                     singleBond: false,
-                    // 直接在style中指定双键
                     bonds: [
-                        // 第一个双键（根据实际原子索引调整）
+                        // 双键配置（根据实际原子索引调整）
                         { 
                             atoms: [0, 1], 
                             order: 2,
@@ -200,7 +198,6 @@
                                 }
                             }
                         },
-                        // 第二个双键
                         { 
                             atoms: [2, 3], 
                             order: 2,
@@ -222,28 +219,20 @@
         }
 
         function addOrbitalSurface(cubeData, isoval, opacity) {
-            // 添加正相位表面（红色）
+            // 正相位表面（红色）
             viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
                 voldata: new $3Dmol.VolumeData(cubeData, "cube"),
                 isoval: isoval,
-                color: new $3Dmol.Color(1, 0, 0),  // 纯红色
                 opacity: opacity,
-                volscheme: new $3Dmol.Gradient.Custom([0,1], [
-                    new $3Dmol.Color(1,0,0), 
-                    new $3Dmol.Color(1,0,0)
-                ])
+                colorfunc: () => new $3Dmol.Color(1, 0, 0) // 纯红色
             });
 
-            // 添加负相位表面（蓝色）
+            // 负相位表面（蓝色）
             viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
                 voldata: new $3Dmol.VolumeData(cubeData, "cube"),
                 isoval: -isoval,
-                color: new $3Dmol.Color(0, 0, 1),  // 纯蓝色
                 opacity: opacity,
-                volscheme: new $3Dmol.Gradient.Custom([0,1], [
-                    new $3Dmol.Color(0,0,1), 
-                    new $3Dmol.Color(0,0,1)
-                ])
+                colorfunc: () => new $3Dmol.Color(0, 0, 1) // 纯蓝色
             });
         }
     </script>
