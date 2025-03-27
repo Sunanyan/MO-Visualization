@@ -38,7 +38,7 @@
 
     <script>
         let viewer = null;
-        let currentSurface = null;
+        let currentSurface = [];
         
         $(document).ready(function() {
             // 初始化3Dmol viewer
@@ -70,22 +70,40 @@
             
             // 加载cube文件
             $.get(filename, function(data) {
-                // 添加分子结构
+                // 添加分子结构（球棍模型）
                 viewer.addModel(data, "cube");
-                viewer.setStyle({}, {sphere: {}});
+                viewer.setStyle({}, {
+                    stick: {radius: 0.15},  // 设置键的样式
+                    sphere: {               // 设置原子的样式
+                        scale: 0.3,         // 原子半径缩放系数
+                        colorscheme: {
+                            "C": "gray",    // 碳原子颜色
+                            "H": "white"    // 氢原子颜色
+                        }
+                    }
+                });
                 
-                // 添加轨道表面
-                viewer.addSurface($3Dmol.SurfaceType.VDW, {
-                    isoval: isoval,
-                    color: "green",
-                    opacity: 0.7
+                // 添加正相位表面（红色）
+                viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
+                    isoval: isoval,         // 正等值面
+                    color: "red",          // 正相位颜色
+                    opacity: 0.7,
+                    volscheme: new $3Dmol.Gradient.RWB // 使用红-白-蓝渐变色
+                });
+                
+                // 添加负相位表面（蓝色）
+                viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
+                    isoval: -isoval,       // 负等值面
+                    color: "blue",         // 负相位颜色
+                    opacity: 0.7,
+                    volscheme: new $3Dmol.Gradient.RWB
                 });
                 
                 // 设置视角和渲染
                 viewer.zoomTo();
                 viewer.render();
             }).fail(function() {
-                alert("Failed to load cube file!");
+                alert("无法加载cube文件！");
             });
         }
     </script>
