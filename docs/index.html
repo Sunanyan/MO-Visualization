@@ -6,7 +6,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
         #container {
             width: 100vw;
             height: 100vh;
@@ -16,10 +16,29 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             padding: 15px;
             border-radius: 8px;
             z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            min-width: 250px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #333;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .value-display {
+            float: right;
+            color: #666;
         }
     </style>
 </head>
@@ -27,18 +46,41 @@
     <div id="container"></div>
     
     <div id="controls">
-        <select id="orbitalSelect">
-            <option value="mo13a">MO13a (HOMO-1)</option>
-            <option value="mo14a">MO14a (HOMO)</option>
-            <option value="mo15a">MO15a (LUMO)</option>
-            <option value="mo19a">MO19a (LUMO+4)</option>
-        </select>
-        <input type="number" id="isoval" step="0.01" value="0.05" min="0" max="1">
+        <div class="slider-container">
+            <label>选择轨道：
+                <select id="orbitalSelect">
+                    <option value="mo13a">MO13a (HOMO-1)</option>
+                    <option value="mo14a">MO14a (HOMO)</option>
+                    <option value="mo15a">MO15a (LUMO)</option>
+                    <option value="mo19a">MO19a (LUMO+4)</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="slider-container">
+            <label>键半径: <span class="value-display" id="stickRadiusValue">0.15</span></label>
+            <input type="range" id="stickRadius" min="0.05" max="0.3" step="0.01" value="0.15">
+        </div>
+
+        <div class="slider-container">
+            <label>原子大小: <span class="value-display" id="atomScaleValue">0.3</span></label>
+            <input type="range" id="atomScale" min="0.1" max="1.0" step="0.1" value="0.3">
+        </div>
+
+        <div class="slider-container">
+            <label>透明度: <span class="value-display" id="opacityValue">0.7</span></label>
+            <input type="range" id="opacity" min="0" max="1" step="0.1" value="0.7">
+        </div>
+
+        <div class="slider-container">
+            <label>等值面值: <span class="value-display" id="isovalValue">0.05</span></label>
+            <input type="range" id="isoval" min="0.01" max="0.2" step="0.01" value="0.05">
+        </div>
     </div>
 
     <script>
         let viewer = null;
-        let currentSurface = [];
+        let currentCubeData = null;
         
         $(document).ready(function() {
             // 初始化3Dmol viewer
@@ -55,56 +97,68 @@
                 loadOrbital($(this).val());
             });
             
-            $('#isoval').change(function() {
-                loadOrbital($('#orbitalSelect').val());
+            $('input[type="range"]').on('input', function() {
+                // 更新数值显示
+                $('#' + this.id + 'Value').text(this.value);
+                // 如果有加载的数据则更新视图
+                if (currentCubeData) updateViewer();
             });
         });
 
         function loadOrbital(mo) {
-            const isoval = parseFloat($('#isoval').val());
             const filename = `orbitals/diene.${mo}.cube`;
             
-            // 清除旧数据
-            viewer.removeAllSurfaces();
-            viewer.clear();
-            
-            // 加载cube文件
             $.get(filename, function(data) {
-                // 添加分子结构（球棍模型）
-                viewer.addModel(data, "cube");
-                viewer.setStyle({}, {
-                    stick: {radius: 0.15},  // 设置键的样式
-                    sphere: {               // 设置原子的样式
-                        scale: 0.3,         // 原子半径缩放系数
-                        colorscheme: {
-                            "C": "gray",    // 碳原子颜色
-                            "H": "white"    // 氢原子颜色
-                        }
-                    }
-                });
-                
-                // 添加正相位表面（红色）
-                viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
-                    isoval: isoval,         // 正等值面
-                    color: "red",          // 正相位颜色
-                    opacity: 0.7,
-                    volscheme: new $3Dmol.Gradient.RWB // 使用红-白-蓝渐变色
-                });
-                
-                // 添加负相位表面（蓝色）
-                viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
-                    isoval: -isoval,       // 负等值面
-                    color: "blue",         // 负相位颜色
-                    opacity: 0.7,
-                    volscheme: new $3Dmol.Gradient.RWB
-                });
-                
-                // 设置视角和渲染
-                viewer.zoomTo();
-                viewer.render();
+                currentCubeData = data;
+                updateViewer();
             }).fail(function() {
                 alert("无法加载cube文件！");
             });
+        }
+
+        function updateViewer() {
+            viewer.removeAllSurfaces();
+            viewer.clear();
+            
+            // 获取当前参数值
+            const stickRadius = parseFloat($('#stickRadius').val());
+            const atomScale = parseFloat($('#atomScale').val());
+            const opacity = parseFloat($('#opacity').val());
+            const isoval = parseFloat($('#isoval').val());
+
+            // 添加分子结构
+            viewer.addModel(currentCubeData, "cube");
+            viewer.setStyle({}, {
+                stick: { 
+                    radius: stickRadius,
+                    colorscheme: "gray"
+                },
+                sphere: {
+                    scale: atomScale,
+                    colorscheme: {
+                        "C": "#808080",  // 碳原子颜色
+                        "H": "#FFFFFF"   // 氢原子颜色
+                    }
+                }
+            });
+
+            // 添加正负相位表面
+            viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
+                isoval: isoval,
+                color: "red",
+                opacity: opacity,
+                volscheme: new $3Dmol.Gradient.RWB
+            });
+            
+            viewer.addSurface($3Dmol.SurfaceType.VOLUME, {
+                isoval: -isoval,
+                color: "blue",
+                opacity: opacity,
+                volscheme: new $3Dmol.Gradient.RWB
+            });
+
+            viewer.zoomTo();
+            viewer.render();
         }
     </script>
 </body>
